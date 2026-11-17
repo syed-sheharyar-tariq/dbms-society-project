@@ -3,7 +3,7 @@ from pathlib import Path
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import create_engine, pool
 
 # Ensure backend root is on sys.path
 backend_dir = Path(__file__).resolve().parent.parent
@@ -31,13 +31,13 @@ if (not db_url or "localhost:5432" in db_url) and ("supabase.co" in settings.DAT
 if db_url.startswith("postgresql+asyncpg://"):
     db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
 
-config.set_main_option("sqlalchemy.url", db_url)
+# Escape % as %% for configparser interpolation safety
+config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=db_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -49,9 +49,8 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    connectable = create_engine(
+        db_url,
         poolclass=pool.NullPool,
     )
 
