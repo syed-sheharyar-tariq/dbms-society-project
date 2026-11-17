@@ -8,6 +8,10 @@ from app.core.config import get_settings
 settings = get_settings()
 
 db_url = settings.DATABASE_URL
+# Automatically normalize sync URL scheme to asyncpg if user pasted standard postgresql://
+if db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 # If placeholder password is still in .env or localhost default, fallback to local SQLite for instant UI smoke testing
 if "[YOUR-PASSWORD]" in db_url or (db_url == "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"):
     db_url = "sqlite+aiosqlite:///./society_local_dev.db"

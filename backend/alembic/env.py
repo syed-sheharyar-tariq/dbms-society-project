@@ -23,6 +23,10 @@ target_metadata = Base.metadata
 
 # Use synchronous migration URL for Alembic
 db_url = settings.DATABASE_MIGRATION_URL
+# If migration url is still localhost default or empty, inherit from DATABASE_URL
+if (not db_url or "localhost:5432" in db_url) and ("supabase.co" in settings.DATABASE_URL or "pooler.supabase.com" in settings.DATABASE_URL):
+    db_url = settings.DATABASE_URL
+
 # If async url was supplied, convert to sync for alembic
 if db_url.startswith("postgresql+asyncpg://"):
     db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
