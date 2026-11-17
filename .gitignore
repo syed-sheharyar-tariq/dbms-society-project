@@ -37,6 +37,9 @@ ENV/
 env/
 
 # Testing and linters
+*.db
+*.sqlite
+*.sqlite3
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/

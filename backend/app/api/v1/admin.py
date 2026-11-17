@@ -48,7 +48,7 @@ async def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
     role: Optional[str] = Query(None),
-    admin: Profile = Depends(require_role("administrator")),
+    admin: Profile = Depends(require_role("administrator", "complaint_officer")),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Profile)
@@ -86,6 +86,9 @@ async def verify_resident(
     request_id = getattr(request.state, "request_id", None)
     resident = await db.get(Resident, resident_id)
     if not resident:
+        res = await db.execute(select(Resident).where(Resident.profile_id == resident_id))
+        resident = res.scalars().first()
+    if not resident:
         raise NotFoundError("Resident not found.")
 
     old_status = resident.verification_status
@@ -117,6 +120,9 @@ async def associate_property_resident(
 ):
     request_id = getattr(request.state, "request_id", None)
     resident = await db.get(Resident, data.resident_id)
+    if not resident:
+        res = await db.execute(select(Resident).where(Resident.profile_id == data.resident_id))
+        resident = res.scalars().first()
     if not resident:
         raise NotFoundError("Resident not found.")
 

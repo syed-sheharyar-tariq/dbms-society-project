@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.logging import setup_logging
-from app.database import check_db_ready
+from app.database import Base, check_db_ready, engine
 from app.schemas.common import HealthStatus
 from app.api.v1.router import api_router
 
@@ -19,7 +19,16 @@ setup_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup validation
+    # Startup validation: If fallback local SQLite is used, ensure tables and demo seeds exist
+    if str(engine.url).startswith("sqlite"):
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        try:
+            from app.database_seed import seed_database
+            await seed_database()
+        except Exception as e:
+            import logging
+            logging.getLogger("cms_main").warning("Local seed auto-init error: %s", e)
     yield
     # Shutdown cleanups
 

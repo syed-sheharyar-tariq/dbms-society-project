@@ -7,18 +7,24 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# For SQLite testing fallback or PostgreSQL production
+db_url = settings.DATABASE_URL
+# If placeholder password is still in .env or localhost default, fallback to local SQLite for instant UI smoke testing
+if "[YOUR-PASSWORD]" in db_url or (db_url == "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"):
+    db_url = "sqlite+aiosqlite:///./society_local_dev.db"
+
 connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
+if db_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=(settings.LOG_LEVEL == "DEBUG"),
-    pool_size=settings.DATABASE_POOL_SIZE if not settings.DATABASE_URL.startswith("sqlite") else None,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW if not settings.DATABASE_URL.startswith("sqlite") else None,
-    connect_args=connect_args,
-)
+engine_kwargs = {
+    "echo": (settings.LOG_LEVEL == "DEBUG"),
+    "connect_args": connect_args,
+}
+if not db_url.startswith("sqlite"):
+    engine_kwargs["pool_size"] = settings.DATABASE_POOL_SIZE
+    engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
+
+engine = create_async_engine(db_url, **engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

@@ -13,9 +13,10 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Uuid as UUID,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from app.database import Base

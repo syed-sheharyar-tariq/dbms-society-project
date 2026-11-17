@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ForbiddenError, UnauthorizedError
 from app.core.security import verify_supabase_jwt
 from app.database import get_db
-from app.models.entities import Profile, PropertyResident, Resident
+from app.models.entities import Profile, Property, PropertyResident, Resident
 
 
 async def get_token_auth_header(authorization: Optional[str] = Header(None)) -> str:
@@ -31,6 +31,38 @@ async def get_current_auth_user_id(token: str = Depends(get_token_auth_header)) 
         raise UnauthorizedError("Malformed subject identifier in token")
 
 
+DEMO_SEEDS = {
+    uuid.UUID("a1111111-1111-1111-1111-111111111111"): {
+        "id": uuid.UUID("11111111-1111-1111-1111-111111111111"),
+        "role": "resident",
+        "full_name": "Fahad Resident (Flat A-204)",
+        "phone": "+92-300-1234567",
+        "email": "resident@jauhar.com",
+    },
+    uuid.UUID("a2222222-2222-2222-2222-222222222222"): {
+        "id": uuid.UUID("22222222-2222-2222-2222-222222222222"),
+        "role": "complaint_officer",
+        "full_name": "Tariq Mehmood (Complaint Officer)",
+        "phone": "+92-300-7654321",
+        "email": "officer@jauhar.com",
+    },
+    uuid.UUID("a3333333-3333-3333-3333-333333333333"): {
+        "id": uuid.UUID("33333333-3333-3333-3333-333333333333"),
+        "role": "field_staff",
+        "full_name": "Imran Khan (Society Electrician)",
+        "phone": "+92-321-9876543",
+        "email": "staff@jauhar.com",
+    },
+    uuid.UUID("a4444444-4444-4444-4444-444444444444"): {
+        "id": uuid.UUID("44444444-4444-4444-4444-444444444444"),
+        "role": "administrator",
+        "full_name": "Society Administrator",
+        "phone": "+92-333-5555555",
+        "email": "admin@jauhar.com",
+    },
+}
+
+
 async def get_current_profile(
     auth_user_id: uuid.UUID = Depends(get_current_auth_user_id),
     db: AsyncSession = Depends(get_db),
@@ -38,6 +70,51 @@ async def get_current_profile(
     stmt = select(Profile).where(Profile.auth_user_id == auth_user_id)
     result = await db.execute(stmt)
     profile = result.scalars().first()
+
+    if not profile and auth_user_id in DEMO_SEEDS:
+        demo = DEMO_SEEDS[auth_user_id]
+        profile = Profile(
+            id=demo["id"],
+            auth_user_id=auth_user_id,
+            role=demo["role"],
+            full_name=demo["full_name"],
+            phone=demo["phone"],
+            email=demo["email"],
+            is_active=True,
+        )
+        db.add(profile)
+        await db.flush()
+
+        if profile.role == "resident":
+            res_id = uuid.UUID("55555555-5555-5555-5555-555555555555")
+            r_res = await db.execute(select(Resident).where(Resident.id == res_id))
+            resident = r_res.scalars().first()
+            if not resident:
+                resident = Resident(
+                    id=res_id,
+                    profile_id=profile.id,
+                    verification_status="verified",
+                )
+                db.add(resident)
+                await db.flush()
+
+            # Ensure at least one property association
+            assoc_res = await db.execute(select(PropertyResident).where(PropertyResident.resident_id == resident.id))
+            if not assoc_res.scalars().first():
+                prop_res = await db.execute(select(Property).limit(1))
+                prop = prop_res.scalars().first()
+                if prop:
+                    assoc = PropertyResident(
+                        resident_id=resident.id,
+                        property_id=prop.id,
+                        relationship_type="owner",
+                        valid_from=date.today(),
+                        is_primary_contact=True,
+                    )
+                    db.add(assoc)
+
+        await db.commit()
+        await db.refresh(profile)
 
     if not profile:
         raise UnauthorizedError("User profile does not exist in the CMS")

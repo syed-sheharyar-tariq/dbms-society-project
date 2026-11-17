@@ -26,11 +26,17 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<{ code?: string; message?: string }>) => {
     if (error.response?.status === 401) {
-      // Clear token and redirect to login if session expired
-      localStorage.removeItem('cms_access_token');
-      localStorage.removeItem('cms_user_profile');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      const token = localStorage.getItem('cms_access_token');
+      const isDemo = token?.startsWith('demo-token-');
+      if (!isDemo) {
+        // Clear token and redirect to login if session expired
+        localStorage.removeItem('cms_access_token');
+        localStorage.removeItem('cms_user_profile');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      } else {
+        console.warn('Demo session 401 received:', error.response?.data);
       }
     }
     return Promise.reject(error);
