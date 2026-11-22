@@ -131,7 +131,8 @@ async def associate_property_resident(
         raise NotFoundError("Property not found.")
 
     assoc = PropertyResident(
-        resident_id=data.resident_id,
+        id=uuid.uuid4(),
+        resident_id=resident.id,
         property_id=data.property_id,
         relationship_type=data.relationship_type,
         valid_from=data.valid_from,
@@ -148,7 +149,7 @@ async def associate_property_resident(
         actor_profile_id=admin.id,
         request_id=request_id,
         new_values={
-            "resident_id": str(data.resident_id),
+            "resident_id": str(resident.id),
             "property_id": str(data.property_id),
             "relationship_type": data.relationship_type,
         },
@@ -156,6 +157,73 @@ async def associate_property_resident(
 
     await db.commit()
     return {"status": "success", "association_id": str(assoc.id)}
+
+
+@router.get("/properties/occupancy")
+async def get_properties_occupancy(
+    block_id: Optional[uuid.UUID] = Query(None),
+    admin: Profile = Depends(require_role("administrator", "complaint_officer")),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        select(Property)
+        .options(
+            selectinload(Property.block),
+            selectinload(Property.property_residents)
+            .selectinload(PropertyResident.resident)
+            .selectinload(Resident.profile),
+            selectinload(Property.complaints),
+        )
+    )
+    if block_id:
+        stmt = stmt.where(Property.block_id == block_id)
+    stmt = stmt.order_by(Property.property_number)
+    res = await db.execute(stmt)
+    properties = res.scalars().all()
+
+    today = datetime.date.today()
+    results = []
+    for p in properties:
+        owner = None
+        occupants = []
+        for pr in p.property_residents:
+            is_active_assoc = pr.valid_from <= today and (pr.valid_until is None or pr.valid_until >= today)
+            if not is_active_assoc:
+                continue
+            person = {
+                "profile_id": str(pr.resident.profile.id) if pr.resident and pr.resident.profile else None,
+                "resident_id": str(pr.resident_id),
+                "full_name": pr.resident.profile.full_name if pr.resident and pr.resident.profile else "Unknown",
+                "phone": pr.resident.profile.phone if pr.resident and pr.resident.profile else None,
+                "email": pr.resident.profile.email if pr.resident and pr.resident.profile else None,
+                "relationship_type": pr.relationship_type,
+                "is_primary_contact": pr.is_primary_contact,
+                "valid_from": pr.valid_from.isoformat() if pr.valid_from else None,
+                "valid_until": pr.valid_until.isoformat() if pr.valid_until else None,
+            }
+            if pr.relationship_type == "owner" and not owner:
+                owner = person
+            occupants.append(person)
+
+        active_complaints = sum(1 for c in p.complaints if c.status not in ("closed", "cancelled"))
+
+        results.append({
+            "id": str(p.id),
+            "property_number": p.property_number,
+            "block_id": str(p.block_id),
+            "block_name": p.block.name if p.block else None,
+            "block_code": p.block.code if p.block else None,
+            "property_type": p.property_type,
+            "address_note": p.address_note,
+            "is_active": p.is_active,
+            "owner": owner,
+            "occupants": occupants,
+            "occupancy_status": "Occupied" if occupants else "Vacant",
+            "active_complaints_count": active_complaints,
+        })
+
+    return results
+
 
 
 @router.patch("/users/{profile_id}/role")

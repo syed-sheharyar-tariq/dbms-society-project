@@ -1,3 +1,4 @@
+import datetime
 import uuid
 from datetime import date
 from typing import Callable, Optional
@@ -20,8 +21,11 @@ async def get_token_auth_header(authorization: Optional[str] = Header(None)) -> 
     return parts[1]
 
 
-async def get_current_auth_user_id(token: str = Depends(get_token_auth_header)) -> uuid.UUID:
-    payload = verify_supabase_jwt(token)
+async def get_current_token_payload(token: str = Depends(get_token_auth_header)) -> dict:
+    return verify_supabase_jwt(token)
+
+
+async def get_current_auth_user_id(payload: dict = Depends(get_current_token_payload)) -> uuid.UUID:
     sub = payload.get("sub")
     if not sub:
         raise UnauthorizedError("Token missing subject claim")
@@ -29,6 +33,7 @@ async def get_current_auth_user_id(token: str = Depends(get_token_auth_header)) 
         return uuid.UUID(sub)
     except ValueError:
         raise UnauthorizedError("Malformed subject identifier in token")
+
 
 
 DEMO_SEEDS = {
@@ -65,6 +70,7 @@ DEMO_SEEDS = {
 
 async def get_current_profile(
     auth_user_id: uuid.UUID = Depends(get_current_auth_user_id),
+    payload: dict = Depends(get_current_token_payload),
     db: AsyncSession = Depends(get_db),
 ) -> Profile:
     stmt = select(Profile).where(Profile.auth_user_id == auth_user_id)
@@ -112,6 +118,54 @@ async def get_current_profile(
                         is_primary_contact=True,
                     )
                     db.add(assoc)
+
+        await db.commit()
+        await db.refresh(profile)
+
+    elif not profile:
+        # Dynamic auto-provisioning for authenticated Supabase users
+        token_email = payload.get("email") or f"user_{str(auth_user_id)[:8]}@society.com"
+        meta = payload.get("user_metadata") or {}
+        user_name = meta.get("full_name") or meta.get("name") or token_email.split("@")[0].capitalize()
+        user_role = meta.get("role", "resident")
+        if user_role not in ("administrator", "complaint_officer", "field_staff", "resident"):
+            user_role = "resident"
+
+        profile = Profile(
+            id=uuid.uuid4(),
+            auth_user_id=auth_user_id,
+            role=user_role,
+            full_name=user_name,
+            phone=meta.get("phone"),
+            email=token_email,
+            is_active=True,
+        )
+        db.add(profile)
+        await db.flush()
+
+        if profile.role == "resident":
+            res_id = uuid.uuid4()
+            resident = Resident(
+                id=res_id,
+                profile_id=profile.id,
+                verification_status="verified",
+                verified_at=datetime.datetime.now(datetime.timezone.utc),
+            )
+            db.add(resident)
+            await db.flush()
+
+            # Link to first property by default if none associated yet
+            prop_res = await db.execute(select(Property).limit(1))
+            prop = prop_res.scalars().first()
+            if prop:
+                assoc = PropertyResident(
+                    resident_id=resident.id,
+                    property_id=prop.id,
+                    relationship_type="owner",
+                    valid_from=date.today(),
+                    is_primary_contact=True,
+                )
+                db.add(assoc)
 
         await db.commit()
         await db.refresh(profile)

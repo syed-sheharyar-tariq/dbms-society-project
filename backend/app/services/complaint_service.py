@@ -112,10 +112,14 @@ async def create_offline_complaint(
     request_id: Optional[str] = None,
 ) -> Complaint:
     """Allows a Complaint Officer to record walk-in/phone/WhatsApp complaints (PR-12, AT-03)."""
-    # 1. Verify resident exists
+    # 1. Verify resident exists (supports resident_id or profile_id)
     resident = await db.get(Resident, data.resident_id)
     if not resident:
+        r_res = await db.execute(select(Resident).where(Resident.profile_id == data.resident_id))
+        resident = r_res.scalars().first()
+    if not resident:
         raise NotFoundError("Referenced resident was not found.")
+
 
     # 2. Verify property association
     is_auth = await check_property_authorization(db, resident.id, data.property_id)

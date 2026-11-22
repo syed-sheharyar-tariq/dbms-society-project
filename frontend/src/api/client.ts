@@ -51,10 +51,32 @@ export const api = {
   // Auth & Profile
   me: () => apiClient.get('/me'),
   updateProfile: (data: { full_name?: string; phone?: string }) => apiClient.patch('/me', data),
+  registerProfile: (data: {
+    auth_user_id?: string;
+    email?: string;
+    full_name: string;
+    phone?: string;
+    role: string;
+    trade_specialization?: string;
+    desk_location?: string;
+    badge_id?: string;
+    property_id?: string;
+    block_id?: string;
+    new_property_number?: string;
+    relationship_type?: string;
+    admin_passcode?: string;
+  }) => apiClient.post('/auth/register-profile', data),
 
   // Master Data
   getBlocks: () => apiClient.get('/blocks'),
   getProperties: (blockId?: string) => apiClient.get('/properties', { params: { block_id: blockId } }),
+  createProperty: (data: {
+    block_id: string;
+    property_number: string;
+    property_type?: string;
+    address_note?: string;
+    is_active?: boolean;
+  }) => apiClient.post('/properties', data),
   getCategories: () => apiClient.get('/categories'),
 
   // Complaints
@@ -113,6 +135,7 @@ export const api = {
 
   // Administration
   getUsers: (params?: { page?: number; role?: string }) => apiClient.get('/admin/users', { params }),
+  getPropertyOccupancy: (blockId?: string) => apiClient.get('/admin/properties/occupancy', { params: { block_id: blockId } }),
   verifyResident: (residentId: string, status: 'verified' | 'rejected') =>
     apiClient.post(`/admin/residents/${residentId}/verify`, { verification_status: status }),
   associatePropertyResident: (data: {

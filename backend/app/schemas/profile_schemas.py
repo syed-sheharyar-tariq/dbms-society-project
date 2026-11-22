@@ -51,3 +51,20 @@ class ResidentResponse(BaseModel):
 class MeResponse(BaseModel):
     profile: ProfileResponse
     resident: Optional[ResidentResponse] = None
+
+
+class RegisterProfileRequest(BaseModel):
+    auth_user_id: Optional[uuid.UUID] = None
+    email: Optional[EmailStr] = None
+    full_name: str = Field(..., max_length=150)
+    phone: Optional[str] = Field(None, max_length=30)
+    role: str = Field(default="resident", description="resident, field_staff, complaint_officer, administrator")
+    trade_specialization: Optional[str] = None
+    desk_location: Optional[str] = None
+    badge_id: Optional[str] = None
+    property_id: Optional[uuid.UUID] = None
+    block_id: Optional[uuid.UUID] = None
+    new_property_number: Optional[str] = None
+    relationship_type: Optional[str] = "owner"
+    admin_passcode: Optional[str] = None
+

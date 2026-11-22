@@ -216,6 +216,49 @@ export const ResidentDashboard: React.FC = () => {
                     <strong>Urgency Reason:</strong> {c.urgency_reason}
                   </div>
                 )}
+
+                {/* 4-Step Lifecycle Visual Stepper */}
+                <div className="mt-4 pt-3 border-t border-slate-100">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 mb-1.5">
+                    <span>Workflow Progress</span>
+                    <span className="capitalize font-mono font-bold text-slate-700">Current: {c.status.replace('_', ' ')}</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    <div className={`p-1.5 rounded text-center text-[10px] font-bold ${
+                      ['submitted', 'under_review', 'in_progress', 'pending_confirmation', 'closed'].includes(c.status)
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      1. Submitted (Office Triage)
+                    </div>
+                    <div className={`p-1.5 rounded text-center text-[10px] font-bold ${
+                      ['under_review', 'in_progress', 'pending_confirmation', 'closed'].includes(c.status)
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      2. Staff Working on Fix
+                    </div>
+                    <div className={`p-1.5 rounded text-center text-[10px] font-bold ${
+                      c.status === 'pending_confirmation'
+                        ? 'bg-orange-100 text-orange-900 border-2 border-orange-400 font-extrabold shadow-sm'
+                        : ['closed'].includes(c.status)
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      3. Action: Resident Approval
+                    </div>
+                    <div className={`p-1.5 rounded text-center text-[10px] font-bold ${
+                      c.status === 'closed'
+                        ? 'bg-emerald-600 text-white'
+                        : c.status === 'reopened'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      4. {c.status === 'reopened' ? 'Reopened' : 'Resolved & Closed'}
+                    </div>
+                  </div>
+                </div>
+
               </div>
             ))}
           </div>
@@ -246,12 +289,21 @@ export const ResidentDashboard: React.FC = () => {
                   className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
                   required
                 >
-                  {properties.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.block_name || 'Block'} - {p.property_number} ({p.property_type})
-                    </option>
-                  ))}
+                  {resident?.properties && resident.properties.length > 0 ? (
+                    resident.properties.map((rp) => (
+                      <option key={rp.property_id} value={rp.property_id}>
+                        Unit {rp.property_number} ({rp.relationship_type}) — Authorized
+                      </option>
+                    ))
+                  ) : (
+                    properties.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.block_name || 'Block'} - {p.property_number} ({p.property_type})
+                      </option>
+                    ))
+                  )}
                 </select>
+
               </div>
 
               <div>

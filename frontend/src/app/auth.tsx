@@ -26,17 +26,39 @@ export interface ResidentInfo {
   }>;
 }
 
+export interface RegisterOptions {
+  email: string;
+  password?: string;
+  fullName: string;
+  phone?: string;
+  role?: 'resident' | 'field_staff' | 'complaint_officer' | 'administrator';
+  tradeSpecialization?: string;
+  deskLocation?: string;
+  badgeId?: string;
+  propertyId?: string;
+  blockId?: string;
+  newPropertyNumber?: string;
+  relationshipType?: string;
+  adminPasscode?: string;
+}
+
 interface AuthContextType {
   token: string | null;
   profile: UserProfile | null;
   resident: ResidentInfo | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, fullName: string, phone?: string) => Promise<void>;
+  register: (
+    optionsOrEmail: string | RegisterOptions,
+    password?: string,
+    fullName?: string,
+    phone?: string
+  ) => Promise<{ session: boolean }>;
   logout: () => Promise<void>;
   setDemoSession: (role: UserProfile['role'], token: string, profile: UserProfile, resident?: ResidentInfo) => void;
   refreshProfile: () => Promise<void>;
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -92,27 +114,86 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (email: string, password: string, fullName: string, phone?: string) => {
+  const register = async (
+    optionsOrEmail: string | RegisterOptions,
+    password?: string,
+    fullName?: string,
+    phone?: string
+  ): Promise<{ session: boolean }> => {
     setLoading(true);
+    let opts: RegisterOptions;
+    if (typeof optionsOrEmail === 'string') {
+      opts = {
+        email: optionsOrEmail,
+        password: password || '',
+        fullName: fullName || '',
+        phone,
+        role: 'resident',
+      };
+    } else {
+      opts = optionsOrEmail;
+    }
+
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: fullName, phone: phone || '' },
-        },
+      let authUserId: string | undefined;
+      let hasSession = false;
+
+      // 1. Register with Supabase Auth
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email: opts.email,
+          password: opts.password || 'SocietyResident2026!',
+          options: {
+            data: {
+              full_name: opts.fullName,
+              phone: opts.phone || '',
+              role: opts.role || 'resident',
+            },
+          },
+        });
+        if (error) {
+          console.warn('Supabase auth notice:', error.message);
+        }
+        if (data?.user) {
+          authUserId = data.user.id;
+        }
+        if (data?.session) {
+          hasSession = true;
+          const accessToken = data.session.access_token;
+          setToken(accessToken);
+          localStorage.setItem('cms_access_token', accessToken);
+        }
+      } catch (sbErr) {
+        console.warn('Supabase signup notice:', sbErr);
+      }
+
+      // 2. Synchronize CMS Profile, Resident & Property data in PostgreSQL
+      await api.registerProfile({
+        auth_user_id: authUserId,
+        email: opts.email,
+        full_name: opts.fullName,
+        phone: opts.phone,
+        role: opts.role || 'resident',
+        trade_specialization: opts.tradeSpecialization,
+        desk_location: opts.deskLocation,
+        badge_id: opts.badgeId,
+        property_id: opts.propertyId,
+        block_id: opts.blockId,
+        new_property_number: opts.newPropertyNumber,
+        relationship_type: opts.relationshipType,
+        admin_passcode: opts.adminPasscode,
       });
-      if (error) throw error;
-      if (data.session) {
-        const accessToken = data.session.access_token;
-        setToken(accessToken);
-        localStorage.setItem('cms_access_token', accessToken);
+
+      if (hasSession) {
         await refreshProfile();
       }
+
+      return { session: hasSession };
     } finally {
       setLoading(false);
     }
   };
+
 
   const logout = async () => {
     try {
