@@ -17,7 +17,9 @@ export const ResidentDashboard: React.FC = () => {
   const [complaints, setComplaints] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
+  const [authorizedProperties, setAuthorizedProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
 
   // New Complaint Form State
   const [showModal, setShowModal] = useState(false);
@@ -37,17 +39,21 @@ export const ResidentDashboard: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [cRes, catRes, pRes] = await Promise.all([
+      const [cRes, catRes, pRes, meRes] = await Promise.all([
         api.getComplaints(),
         api.getCategories(),
         api.getProperties(),
+        api.me().catch(() => null),
       ]);
       setComplaints(cRes.data.items || []);
       setCategories(catRes.data || []);
       setProperties(pRes.data || []);
 
-      if (resident?.properties?.length) {
-        setPropertyId(resident.properties[0].property_id);
+      const liveProps = meRes?.data?.resident?.properties || resident?.properties || [];
+      setAuthorizedProperties(liveProps);
+
+      if (liveProps.length > 0) {
+        setPropertyId(liveProps[0].property_id);
       } else if (pRes.data?.length) {
         setPropertyId(pRes.data[0].id);
       }
@@ -60,6 +66,7 @@ export const ResidentDashboard: React.FC = () => {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     loadData();
@@ -122,12 +129,19 @@ export const ResidentDashboard: React.FC = () => {
         </div>
 
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            const currentProps = authorizedProperties.length > 0 ? authorizedProperties : (resident?.properties || []);
+            if (currentProps.length > 0) {
+              setPropertyId(currentProps[0].property_id);
+            }
+            setShowModal(true);
+          }}
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-sm shadow-sm transition-colors"
         >
           <PlusCircle className="h-4 w-4" />
           <span>New Complaint</span>
         </button>
+
       </div>
 
       {/* Pending Confirmations Alert (PR-10) */}
@@ -289,8 +303,8 @@ export const ResidentDashboard: React.FC = () => {
                   className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
                   required
                 >
-                  {resident?.properties && resident.properties.length > 0 ? (
-                    resident.properties.map((rp) => (
+                  {(authorizedProperties.length > 0 ? authorizedProperties : (resident?.properties || [])).length > 0 ? (
+                    (authorizedProperties.length > 0 ? authorizedProperties : resident!.properties).map((rp) => (
                       <option key={rp.property_id} value={rp.property_id}>
                         Unit {rp.property_number} ({rp.relationship_type}) — Authorized
                       </option>
@@ -302,6 +316,7 @@ export const ResidentDashboard: React.FC = () => {
                       </option>
                     ))
                   )}
+
                 </select>
 
               </div>

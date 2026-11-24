@@ -221,4 +221,25 @@ async def check_property_authorization(
     )
     result = await db.execute(stmt)
     assoc = result.scalars().first()
-    return assoc is not None
+    if assoc:
+        return True
+
+    # Fallback: check if resident_id was actually a Profile ID
+    r_check = await db.execute(select(Resident).where(Resident.profile_id == resident_id))
+    r_obj = r_check.scalars().first()
+    if r_obj:
+        stmt2 = (
+            select(PropertyResident)
+            .where(
+                PropertyResident.resident_id == r_obj.id,
+                PropertyResident.property_id == property_id,
+                PropertyResident.valid_from <= today,
+                (PropertyResident.valid_until.is_(None) | (PropertyResident.valid_until >= today)),
+            )
+        )
+        res2 = await db.execute(stmt2)
+        if res2.scalars().first():
+            return True
+
+    return False
+

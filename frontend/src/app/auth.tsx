@@ -55,7 +55,8 @@ interface AuthContextType {
     phone?: string
   ) => Promise<{ session: boolean }>;
   logout: () => Promise<void>;
-  setDemoSession: (role: UserProfile['role'], token: string, profile: UserProfile, resident?: ResidentInfo) => void;
+  setDemoSession: (role: UserProfile['role'], token: string, profile: UserProfile, resident?: ResidentInfo) => Promise<void>;
+
   refreshProfile: () => Promise<void>;
 }
 
@@ -210,7 +211,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Demo session helper for easy role switching and automated testing
-  const setDemoSession = (
+  const setDemoSession = async (
     _role: UserProfile['role'],
     newToken: string,
     newProfile: UserProfile,
@@ -224,7 +225,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (newResident) {
       localStorage.setItem('cms_resident_info', JSON.stringify(newResident));
     }
+
+    // Immediately sync with live database state for accurate property IDs
+    try {
+      const res = await api.me();
+      if (res.data?.profile) {
+        setProfile(res.data.profile);
+        localStorage.setItem('cms_user_profile', JSON.stringify(res.data.profile));
+      }
+      if (res.data?.resident) {
+        setResident(res.data.resident);
+        localStorage.setItem('cms_resident_info', JSON.stringify(res.data.resident));
+      }
+    } catch {
+      // Keep optimistic values if offline
+    }
   };
+
 
   return (
     <AuthContext.Provider

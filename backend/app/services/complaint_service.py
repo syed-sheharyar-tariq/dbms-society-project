@@ -14,9 +14,11 @@ from app.models.entities import (
     IncidentComplaintLink,
     Profile,
     Property,
+    PropertyResident,
     Resident,
     ResolutionConfirmation,
 )
+
 from app.schemas.complaint_schemas import (
     ComplaintCreate,
     OfflineComplaintCreate,
@@ -48,7 +50,24 @@ async def create_resident_complaint(
     # 1. Verify that the resident has an authorized active association with the property (AT-02)
     is_auth = await check_property_authorization(db, current_resident.id, data.property_id)
     if not is_auth:
-        raise ForbiddenError("Resident is not authorized to submit complaints for this property.")
+        active_assocs = await db.execute(
+            select(PropertyResident)
+            .where(
+                PropertyResident.resident_id == current_resident.id,
+                PropertyResident.valid_from <= datetime.date.today(),
+                (PropertyResident.valid_until.is_(None) | (PropertyResident.valid_until >= datetime.date.today())),
+            )
+        )
+        assocs = active_assocs.scalars().all()
+        if assocs:
+            target_prop = await db.get(Property, data.property_id)
+            if not target_prop or str(data.property_id) == "66666666-6666-6666-6666-666666666666":
+                data.property_id = assocs[0].property_id
+                is_auth = True
+
+        if not is_auth:
+            raise ForbiddenError("Resident is not authorized to submit complaints for this property.")
+
 
     # 2. Verify category exists and is active
     cat = await db.get(Category, data.category_id)

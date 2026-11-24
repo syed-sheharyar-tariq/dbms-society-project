@@ -187,7 +187,9 @@ async def get_me(
         stmt = (
             select(Resident)
             .options(
-                selectinload(Resident.property_associations).selectinload(PropertyResident.property)
+                selectinload(Resident.property_associations)
+                .selectinload(PropertyResident.property)
+                .selectinload(Property.block)
             )
             .where(Resident.profile_id == profile.id)
         )
@@ -196,15 +198,21 @@ async def get_me(
         if resident:
             assoc_list = []
             for assoc in resident.property_associations:
+                block_code_str = (
+                    assoc.property.block.code
+                    if assoc.property and assoc.property.block
+                    else str(assoc.property.block_id)
+                )
                 assoc_list.append({
                     "property_id": assoc.property_id,
                     "property_number": assoc.property.property_number,
-                    "block_code": assoc.property.block_id,
+                    "block_code": block_code_str,
                     "relationship_type": assoc.relationship_type,
                     "is_primary_contact": assoc.is_primary_contact,
                     "valid_from": assoc.valid_from,
                     "valid_until": assoc.valid_until,
                 })
+
             resident_data = ResidentResponse(
                 id=resident.id,
                 profile_id=resident.profile_id,

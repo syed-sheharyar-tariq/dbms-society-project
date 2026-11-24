@@ -26,7 +26,7 @@ export const LoginPage: React.FC = () => {
   };
 
   // Quick Role Simulator (Generates verified demo token & profile)
-  const handleQuickRole = (role: 'resident' | 'complaint_officer' | 'field_staff' | 'administrator') => {
+  const handleQuickRole = async (role: 'resident' | 'complaint_officer' | 'field_staff' | 'administrator') => {
     // Generate valid mock JWT payload format
     const demoToken = 'demo-token-' + role;
     const demoProfiles = {
@@ -70,7 +70,7 @@ export const LoginPage: React.FC = () => {
       verification_status: 'verified' as const,
       properties: [
         {
-          property_id: '66666666-6666-6666-6666-666666666666',
+          property_id: '97204a2b-91cd-466b-ad18-663ed344ca68',
           property_number: 'A-204',
           block_code: 'BLK-A',
           relationship_type: 'owner',
@@ -79,9 +79,10 @@ export const LoginPage: React.FC = () => {
       ]
     } : undefined;
 
-    setDemoSession(role, demoToken, demoProfiles[role], residentInfo);
+    await setDemoSession(role, demoToken, demoProfiles[role], residentInfo);
     navigate('/');
   };
+
 
   return (
     <div
